@@ -1,35 +1,34 @@
 package plist
 
 import (
-	"unicode/utf16"
-	"strings"
-	"fmt"
 	"bytes"
-	"reflect"
 	"encoding/binary"
+	"fmt"
+	"reflect"
+	"strings"
+	"unicode/utf16"
 )
 
 // Quick and dirty binary plist encoder, doesn't reuse values, and sometimes uses wider encodings than necessary
 func Marshal(data interface{}) ([]byte, error) {
-	
+
 	var e encoder
 	e.buf = bytes.NewBuffer([]byte("bplist00"))
 	e.objects = append(e.objects, data)
-	e.strings = make( map[string]uint16)
-	for i:= 0; i < len(e.objects); i++ {
+	e.strings = make(map[string]uint16)
+	for i := 0; i < len(e.objects); i++ {
 		e.offsets = append(e.offsets, e.buf.Len())
 		e.writeObject(e.objects[i])
 	}
 	offsetStart := uint64(e.buf.Len())
-	for _,v := range e.offsets {
+	for _, v := range e.offsets {
 		off := uint32(v)
 		binary.Write(e.buf, binary.BigEndian, &off)
 	}
-	
-	
+
 	var blank [6]byte
 	e.buf.Write(blank[:])
-	
+
 	e.buf.WriteByte(4)
 	e.buf.WriteByte(2)
 	x := uint64(len(e.objects))
@@ -37,15 +36,15 @@ func Marshal(data interface{}) ([]byte, error) {
 	x = 0
 	binary.Write(e.buf, binary.BigEndian, x)
 	binary.Write(e.buf, binary.BigEndian, offsetStart)
-	
+
 	return e.buf.Bytes(), nil
 }
 
 func (e *encoder) tag(a byte, b int) {
 	if b < 15 {
-		e.buf.WriteByte( a << 4 | byte(b & 0xf))
+		e.buf.WriteByte(a<<4 | byte(b&0xf))
 	} else {
-		e.buf.WriteByte( a << 4 | 0xf)
+		e.buf.WriteByte(a<<4 | 0xf)
 		e.writeObject(b)
 	}
 }
@@ -61,29 +60,29 @@ func (e *encoder) writeValue(v reflect.Value) {
 		return
 	case reflect.Map:
 		keys := v.MapKeys()
-		e.tag(13,len(keys))
-		for _,k := range keys {
+		e.tag(13, len(keys))
+		for _, k := range keys {
 			e.writeRef(k.Interface())
 		}
-		for _,k := range keys {
+		for _, k := range keys {
 			e.writeRef(v.MapIndex(k).Interface())
 		}
 		return
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		value := uint64(v.Int())
 		if value < 256 {
-			e.tag(1,0)
+			e.tag(1, 0)
 			e.buf.WriteByte(byte(value))
 		} else {
-			e.tag(1,3)
+			e.tag(1, 3)
 			binary.Write(e.buf, binary.BigEndian, value)
 		}
 		return
 	case reflect.Bool:
 		if v.Bool() {
-			e.tag(0,9)
+			e.tag(0, 9)
 		} else {
-			e.tag(0,8)
+			e.tag(0, 8)
 		}
 		return
 	case reflect.Slice:
@@ -96,16 +95,16 @@ func (e *encoder) writeValue(v reflect.Value) {
 	case reflect.String:
 		s := []byte(v.String())
 		ascii := true
-		for _,c := range s {
+		for _, c := range s {
 			ascii = ascii && c < 128
 		}
 		// Sheesh, maybe we should just stick with the XML encoding..
 		if ascii {
-			e.tag(5,len(s))
+			e.tag(5, len(s))
 			e.buf.Write(s)
 		} else {
 			s2 := utf16.Encode([]rune(v.String()))
-			e.tag(6,len(s2))
+			e.tag(6, len(s2))
 			binary.Write(e.buf, binary.BigEndian, s2)
 		}
 		return
@@ -117,23 +116,23 @@ func (e *encoder) writeValue(v reflect.Value) {
 	case reflect.Struct:
 		// find field
 		typ := v.Type()
-		e.tag(13,v.NumField())
+		e.tag(13, v.NumField())
 		for j := 0; j < v.NumField(); j++ {
 			f := typ.Field(j)
 			tag := f.Tag.Get("plist")
 			if len(tag) == 0 {
-				tag = strings.ToLower(f.Name[:1])+f.Name[1:]
+				tag = strings.ToLower(f.Name[:1]) + f.Name[1:]
 			}
 			e.writeRef(tag)
 		}
 		for j := 0; j < v.NumField(); j++ {
 			f := typ.Field(j)
-			value := v.FieldByIndex(f.Index) 
+			value := v.FieldByIndex(f.Index)
 			e.writeRef(value.Interface())
 		}
 		return
 	}
-	
+
 	fmt.Println("Unhandled kind", v.Kind())
 }
 
@@ -153,11 +152,9 @@ func (e *encoder) writeRef(o interface{}) {
 	}
 }
 
-
 type encoder struct {
-	buf *bytes.Buffer
+	buf     *bytes.Buffer
 	objects []interface{}
 	offsets []int
 	strings map[string]uint16
 }
-

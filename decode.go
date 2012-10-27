@@ -3,13 +3,13 @@ package plist
 // very simple plist reader/writer
 // for now, we just reflect into generic data structures
 import (
-	"unicode/utf16"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"strings"
+	"unicode/utf16"
 )
 
 type decoder struct {
@@ -38,7 +38,7 @@ func (s *decoder) read(size byte) (v int64) {
 	for {
 		size--
 		t := s.readByte()
-		v |= (int64(t) & 0xff) << (size * 8)
+		v |= int64(t) & 0xff << (size * 8)
 		if size == 0 {
 			break
 		}
@@ -69,7 +69,7 @@ func (s *decoder) readDict(vv reflect.Value, count int) {
 	// this is where the magic happens..
 	var ismap bool
 	v := indirect(vv)
-	
+
 	if v.Kind() == reflect.Interface {
 		if v.IsNil() {
 			// Can this be another type? (e.g. number, date, etc)
@@ -77,7 +77,7 @@ func (s *decoder) readDict(vv reflect.Value, count int) {
 		}
 		v = v.Elem()
 	}
-	
+
 	switch v.Kind() {
 	default:
 		fmt.Println(v.Kind(), v, vv.Kind(), vv, v.IsValid())
@@ -146,7 +146,7 @@ func (s *decoder) readArray(v reflect.Value, count int) {
 		fmt.Println(v)
 		panic("Can't decode array")
 	case reflect.Interface:
-		v.Set(reflect.ValueOf(make([]interface{},0)))
+		v.Set(reflect.ValueOf(make([]interface{}, 0)))
 		vv = v.Elem()
 	//case reflect.Array:
 	case reflect.Slice:
@@ -164,7 +164,7 @@ func (s *decoder) readArray(v reflect.Value, count int) {
 type UID []byte
 
 func (uid UID) Value() (rval uint) {
-	for _,x := range uid {
+	for _, x := range uid {
 		rval <<= 8
 		rval |= uint(x)
 	}
@@ -233,7 +233,7 @@ func (s *decoder) readObject(v reflect.Value) {
 		v.Set(reflect.ValueOf(string(tmp)))
 		return
 	case 6: // unicode string
-		var tmp = make([]uint16,b)
+		var tmp = make([]uint16, b)
 		binary.Read(s.r, binary.BigEndian, tmp)
 		tmp2 := string(utf16.Decode(tmp))
 		v.Set(reflect.ValueOf(tmp2))
