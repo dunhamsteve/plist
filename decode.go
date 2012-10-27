@@ -72,6 +72,7 @@ func (s *decoder) readDict(vv reflect.Value, count int) {
 	
 	if v.Kind() == reflect.Interface {
 		if v.IsNil() {
+			// Can this be another type? (e.g. number, date, etc)
 			v.Set(reflect.ValueOf(make(map[string]interface{})))
 		}
 		v = v.Elem()
@@ -79,7 +80,7 @@ func (s *decoder) readDict(vv reflect.Value, count int) {
 	
 	switch v.Kind() {
 	default:
-		fmt.Println(v.Kind(), v, vv.Kind(), vv, v.IsValid(), v.IsNil())
+		fmt.Println(v.Kind(), v, vv.Kind(), vv, v.IsValid())
 		panic("Can't decode Map")
 	case reflect.Map:
 		t := v.Type()
@@ -87,6 +88,9 @@ func (s *decoder) readDict(vv reflect.Value, count int) {
 			panic("map must have string key")
 		}
 		ismap = true
+		if v.IsNil() {
+			v.Set(reflect.MakeMap(v.Type()))
+		}
 	case reflect.Struct:
 		ismap = false
 	}
@@ -103,7 +107,6 @@ func (s *decoder) readDict(vv reflect.Value, count int) {
 			eType := v.Type().Elem()
 			dest = reflect.New(eType).Elem()
 		} else {
-
 			var field reflect.StructField
 			// find field
 			var ok bool
@@ -158,8 +161,21 @@ func (s *decoder) readArray(v reflect.Value, count int) {
 	return
 }
 
-func (s *decoder) readObject(v reflect.Value) {
+type UID []byte
 
+func (uid UID) Value() (rval uint) {
+	for _,x := range uid {
+		rval <<= 8
+		rval |= uint(x)
+	}
+	return
+}
+
+func (uid UID) String() string {
+	return fmt.Sprintf("UID:%x", []byte(uid))
+}
+
+func (s *decoder) readObject(v reflect.Value) {
 	tag := s.readByte()
 	a := tag >> 4
 	b := uint64(tag & 0xf)
@@ -205,6 +221,11 @@ func (s *decoder) readObject(v reflect.Value) {
 		// SetFloat is probably faster, and we can use it in the non-reflect.Interface case
 		v.Set(reflect.ValueOf(value))
 		return
+	case 4: // data
+		var tmp = make([]byte, b+1)
+		io.ReadFull(s.r, tmp)
+		v.Set(reflect.ValueOf(tmp))
+		return
 	case 5: // string
 		var tmp = make([]byte, b)
 		io.ReadFull(s.r, tmp)
@@ -216,6 +237,11 @@ func (s *decoder) readObject(v reflect.Value) {
 		binary.Read(s.r, binary.BigEndian, tmp)
 		tmp2 := string(utf16.Decode(tmp))
 		v.Set(reflect.ValueOf(tmp2))
+		return
+	case 8: // UID
+		var tmp = UID(make([]byte, b+1))
+		io.ReadFull(s.r, tmp)
+		v.Set(reflect.ValueOf(tmp))
 		return
 	case 10: // array
 		s.readArray(v, int(b))
