@@ -4,8 +4,9 @@ package plist
 // for now, we just reflect into generic data structures
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
+	"errors"
+	"log"
 	"io"
 	"reflect"
 	"strings"
@@ -57,6 +58,10 @@ func (s *decoder) readRef(t reflect.Value) {
 	s.get(idx, t)
 }
 
+func (s *decoder) skipRef() {
+	s.read(s.refSize)
+}
+
 func (s *decoder) get(idx int64, v reflect.Value) {
 	pos, _ := s.r.Seek(0, 1)
 	s.r.Seek(s.offsets[idx], 0)
@@ -80,7 +85,7 @@ func (s *decoder) readDict(vv reflect.Value, count int) {
 
 	switch v.Kind() {
 	default:
-		fmt.Println(v.Kind(), v, vv.Kind(), vv, v.IsValid())
+		log.Println(v.Kind(), v, vv.Kind(), vv, v.IsValid())
 		panic("Can't decode Map")
 	case reflect.Map:
 		t := v.Type()
@@ -106,6 +111,8 @@ func (s *decoder) readDict(vv reflect.Value, count int) {
 		if ismap {
 			eType := v.Type().Elem()
 			dest = reflect.New(eType).Elem()
+			s.readRef(dest)
+			v.SetMapIndex(keysV.Index(i), dest)
 		} else {
 			var field reflect.StructField
 			// find field
@@ -127,14 +134,11 @@ func (s *decoder) readDict(vv reflect.Value, count int) {
 			}
 			if ok {
 				dest = v.FieldByIndex(field.Index)
+				s.readRef(dest)
 			} else {
-				fmt.Println("nowhere to stick", keys[i])
-				panic(nil)
+				log.Println("nowhere to stick", keys[i])
+				s.skipRef()
 			}
-		}
-		s.readRef(dest)
-		if ismap {
-			v.SetMapIndex(keysV.Index(i), dest)
 		}
 	}
 }
@@ -143,7 +147,7 @@ func (s *decoder) readArray(v reflect.Value, count int) {
 	var vv reflect.Value
 	switch v.Kind() {
 	default:
-		fmt.Println(v)
+		log.Println(v)
 		panic("Can't decode array")
 	case reflect.Interface:
 		v.Set(reflect.ValueOf(make([]interface{}, 0)))
@@ -250,8 +254,7 @@ func (s *decoder) readObject(v reflect.Value) {
 		s.readDict(v, int(b))
 		return
 	}
-	fmt.Printf("unhandled a=%d, b=%d\n", a, b)
-	panic(nil)
+	log.Fatalf("unhandled a=%d, b=%d\n", a, b)
 	return
 }
 
