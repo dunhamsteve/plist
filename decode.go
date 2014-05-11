@@ -4,10 +4,10 @@ package plist
 // for now, we just reflect into generic data structures
 import (
 	"encoding/binary"
-	"fmt"
 	"errors"
-	"log"
+	"fmt"
 	"io"
+	"log"
 	"reflect"
 	"strings"
 	"unicode/utf16"
@@ -136,7 +136,7 @@ func (s *decoder) readDict(vv reflect.Value, count int) {
 				dest = v.FieldByIndex(field.Index)
 				s.readRef(dest)
 			} else {
-				log.Println("nowhere to stick", keys[i])
+				// log.Println("nowhere to stick", keys[i])
 				s.skipRef()
 			}
 		}
@@ -226,7 +226,7 @@ func (s *decoder) readObject(v reflect.Value) {
 		v.Set(reflect.ValueOf(value))
 		return
 	case 4: // data
-		var tmp = make([]byte, b+1)
+		var tmp = make([]byte, b)
 		io.ReadFull(s.r, tmp)
 		v.Set(reflect.ValueOf(tmp))
 		return
