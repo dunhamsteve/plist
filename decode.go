@@ -10,6 +10,7 @@ import (
 	"log"
 	"reflect"
 	"strings"
+	"time"
 	"unicode/utf16"
 )
 
@@ -224,6 +225,15 @@ func (s *decoder) readObject(v reflect.Value) {
 		}
 		// SetFloat is probably faster, and we can use it in the non-reflect.Interface case
 		v.Set(reflect.ValueOf(value))
+		return
+	case 3: // date
+		v = indirect(v)
+		var value float64
+		binary.Read(s.r, binary.BigEndian, &value)
+		value += 978307200.0
+		sec := int64(value)
+		t := time.Unix(sec, 0)
+		v.Set(reflect.ValueOf(t))
 		return
 	case 4: // data
 		var tmp = make([]byte, b)
