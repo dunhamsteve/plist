@@ -86,6 +86,13 @@ func (e *encoder) writeValue(v reflect.Value) {
 		}
 		return
 	case reflect.Slice:
+		if (reflect.Kind(v.Type().Elem().Kind()) == reflect.Uint8) {
+			s := []byte(v.Bytes())
+			e.tag(4, len(s))
+			e.buf.Write(s) 
+			return
+		}
+
 		l := v.Len()
 		e.tag(10, l)
 		for i := 0; i < l; i++ {
